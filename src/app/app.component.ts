@@ -1,12 +1,12 @@
 import { Component } from '@angular/core';
-import { ThreeDObjectComponent } from './components/three-d-object/three-d-object.component';
+import { RouterModule, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [ThreeDObjectComponent],
+  imports: [RouterOutlet, RouterModule],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.scss'
+  styleUrl: './app.component.scss',
+  standalone: true
 })
 export class AppComponent {
-  title = 'web-3d-object-visualization-poc';
 }

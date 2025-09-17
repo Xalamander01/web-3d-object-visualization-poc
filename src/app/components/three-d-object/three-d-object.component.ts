@@ -1,20 +1,29 @@
-import { Component, ElementRef, HostListener, inject, ViewChild } from "@angular/core";
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  inject,
+  ViewChild,
+} from "@angular/core";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { InfoModalComponent } from "./info-modal/info-modal.component";
 import { MatDialog } from "@angular/material/dialog";
+import { ArticleEnum } from "./article/article.enum";
+import { Router } from "@angular/router";
 
 @Component({
   selector: "app-three-d-object",
-  imports: [InfoModalComponent],
+  imports: [],
   templateUrl: "./three-d-object.component.html",
   styleUrl: "./three-d-object.component.scss",
-  standalone: true
+  standalone: true,
 })
 export class ThreeDObjectComponent {
   @ViewChild("canvas", { static: true }) private canvasRef!: ElementRef;
   private dialog = inject(MatDialog);
+  private router = inject(Router);
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -22,6 +31,9 @@ export class ThreeDObjectComponent {
   private controls!: OrbitControls;
   private raycaster = new THREE.Raycaster();
   private mouse = new THREE.Vector2();
+
+  private isDragging = false;
+  private dragStart = { x: 0, y: 0 };
 
   ngAfterViewInit(): void {
     this.initScene();
@@ -86,9 +98,30 @@ export class ThreeDObjectComponent {
     this.renderer.render(this.scene, this.camera);
   };
 
-  // Detect clicks
-  @HostListener("click", ["$event"])
-  onClick(event: MouseEvent): void {
+  @HostListener("mousedown", ["$event"])
+  onMouseDown(event: MouseEvent): void {
+    this.dragStart = { x: event.clientX, y: event.clientY };
+    this.isDragging = false;
+  }
+
+  @HostListener("mousemove", ["$event"])
+  onMouseMove(event: MouseEvent): void {
+    const dx = Math.abs(event.clientX - this.dragStart.x);
+    const dy = Math.abs(event.clientY - this.dragStart.y);
+
+    if (dx > 5 || dy > 5) {
+      this.isDragging = true;
+    }
+  }
+
+  @HostListener("mouseup", ["$event"])
+  onMouseUp(event: MouseEvent): void {
+    if (!this.isDragging) {
+      this.handleClick(event); // run your raycaster here
+    }
+  }
+
+  private handleClick(event: MouseEvent): void {
     const rect = this.renderer.domElement.getBoundingClientRect();
 
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -101,10 +134,24 @@ export class ThreeDObjectComponent {
     );
 
     if (intersects.length > 0) {
-      this.dialog.open(InfoModalComponent, {
-      width: '400px',
-      data: { name: intersects[0].object.name },
-    });
+      const clickedObjectName = intersects[0].object.name;
+      this.dialog
+        .open(InfoModalComponent, {
+          width: "400px",
+          data: { name: intersects[0].object.name },
+        })
+        .afterClosed()
+        .subscribe((result) => {
+          if (result === "articleRedirect") {
+            if (
+              (Object as any).values(ArticleEnum).includes(clickedObjectName)
+            ) {
+              this.router.navigate(["/article", clickedObjectName]);
+            } else {
+              console.warn("No article found for:", clickedObjectName);
+            }
+          }
+        });
       // later: route navigation or popup trigger here
     }
   }
