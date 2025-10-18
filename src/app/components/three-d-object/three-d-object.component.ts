@@ -1,18 +1,8 @@
-import {
-  Component,
-  ElementRef,
-  HostListener,
-  inject,
-  ViewChild,
-} from "@angular/core";
+import { Component, ElementRef, ViewChild } from "@angular/core";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { InfoModalComponent } from "./info-modal/info-modal.component";
-import { MatDialog } from "@angular/material/dialog";
-import { ArticleEnum } from "./article/article.enum";
-import { Router } from "@angular/router";
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 
 @Component({
   selector: "app-three-d-object",
@@ -22,7 +12,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
   standalone: true,
 })
 export class ThreeDObjectComponent {
-  @ViewChild('canvasContainer', { static: true }) canvasRef!: ElementRef;
+  @ViewChild("canvasContainer", { static: true }) canvasRef!: ElementRef;
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -59,7 +49,7 @@ export class ThreeDObjectComponent {
     this.loadModel();
     this.animate();
 
-    window.addEventListener('resize', this.onWindowResize, false);
+    window.addEventListener("resize", this.onWindowResize, false);
   }
 
   private initRenderer(): void {
@@ -77,33 +67,33 @@ export class ThreeDObjectComponent {
 
   private loadModel(): void {
     const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
 
-    // 🔹 Draco setup (must have decoder files under /assets/draco/)
-    const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('assets/draco/');
-    loader.setDRACOLoader(dracoLoader);
-
+    const started = performance.now();
     loader.load(
-      'assets/models/unfinished_abandoned_building_in_riga_test.glb',
+      "assets/models/unfinished_abandoned_building_in_riga_optimized.glb",
       (gltf) => {
         this.model = gltf.scene;
 
-        // Optional normalization
+        // Normalize model position and scale
         const box = new THREE.Box3().setFromObject(this.model);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         const scaleFactor = 2 / Math.max(size.x, size.y, size.z);
+
         this.model.scale.setScalar(scaleFactor);
         this.model.position.sub(center.multiplyScalar(scaleFactor));
 
         this.scene.add(this.model);
-        console.log('✅ Model loaded');
+        console.log(
+          "✅ Optimized model loaded in ",
+          performance.now() - started,
+          "ms"
+        );
       },
-      (xhr) => {
-        console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}%`);
-      },
+      undefined,
       (error) => {
-        console.error('❌ Error loading model:', error);
+        console.error("❌ Error loading model:", error);
       }
     );
   }
@@ -124,6 +114,6 @@ export class ThreeDObjectComponent {
     cancelAnimationFrame(this.animationId);
     this.controls.dispose();
     this.renderer.dispose();
-    window.removeEventListener('resize', this.onWindowResize, false);
+    window.removeEventListener("resize", this.onWindowResize, false);
   }
 }
