@@ -1,5 +1,10 @@
-canvas {
-  width: 99%;
-  height: 99%;
-  display: block;
+.viewer-container {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #1a1a1a;
+}
+
+.object-container {
+  border: red solid 2px;
 }

@@ -12,6 +12,7 @@ import { InfoModalComponent } from "./info-modal/info-modal.component";
 import { MatDialog } from "@angular/material/dialog";
 import { ArticleEnum } from "./article/article.enum";
 import { Router } from "@angular/router";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 
 @Component({
   selector: "app-three-d-object",
@@ -21,145 +22,108 @@ import { Router } from "@angular/router";
   standalone: true,
 })
 export class ThreeDObjectComponent {
-  @ViewChild("canvas", { static: true }) private canvasRef!: ElementRef;
-  private dialog = inject(MatDialog);
-  private router = inject(Router);
+  @ViewChild('canvasContainer', { static: true }) canvasRef!: ElementRef;
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   private renderer!: THREE.WebGLRenderer;
   private controls!: OrbitControls;
-  private raycaster = new THREE.Raycaster();
-  private mouse = new THREE.Vector2();
+  private animationId!: number;
+  private model!: THREE.Group;
 
-  private isDragging = false;
-  private dragStart = { x: 0, y: 0 };
-
-  ngAfterViewInit(): void {
-    this.initScene();
-    this.loadModel();
-    this.animate();
+  private get container(): HTMLDivElement {
+    return this.canvasRef.nativeElement;
   }
 
-  private initScene(): void {
-    const canvas = this.canvasRef.nativeElement;
-
-    // Scene + Camera
+  ngOnInit(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xeeeeee);
+    this.scene.background = new THREE.Color(0x1a1a1a);
 
     this.camera = new THREE.PerspectiveCamera(
-      75,
-      canvas.clientWidth / canvas.clientHeight,
+      60,
+      window.innerWidth / window.innerHeight,
       0.1,
       1000
     );
-    this.camera.position.set(20, 30, 20);
+    this.camera.position.set(0, 2, 5);
 
-    // Renderer
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(5, 10, 7);
+    this.scene.add(ambientLight, dirLight);
+  }
+
+  ngAfterViewInit(): void {
+    this.initRenderer();
+    this.initControls();
+    this.loadModel();
+    this.animate();
+
+    window.addEventListener('resize', this.onWindowResize, false);
+  }
+
+  private initRenderer(): void {
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.container.appendChild(this.renderer.domElement);
+  }
 
-    // Lights
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 5, 5);
-    this.scene.add(light);
-
-    const ambient = new THREE.AmbientLight(0x404040);
-    this.scene.add(ambient);
-
-    // OrbitControls
+  private initControls(): void {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.1;
+    this.controls.target.set(0, 1, 0);
   }
 
   private loadModel(): void {
     const loader = new GLTFLoader();
-    loader.load(
-      "assets/models/Lantern.glb",
-      (gltf: { scene: any }) => {
-        this.scene.add(gltf.scene);
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const center = box.getCenter(new THREE.Vector3());
 
-        this.controls.target.copy(center);
-        this.camera.lookAt(center);
+    // 🔹 Draco setup (must have decoder files under /assets/draco/)
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('assets/draco/');
+    loader.setDRACOLoader(dracoLoader);
+
+    loader.load(
+      'assets/models/unfinished_abandoned_building_in_riga_test.glb',
+      (gltf) => {
+        this.model = gltf.scene;
+
+        // Optional normalization
+        const box = new THREE.Box3().setFromObject(this.model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const scaleFactor = 2 / Math.max(size.x, size.y, size.z);
+        this.model.scale.setScalar(scaleFactor);
+        this.model.position.sub(center.multiplyScalar(scaleFactor));
+
+        this.scene.add(this.model);
+        console.log('✅ Model loaded');
       },
-      undefined,
-      (error: any) => {
-        console.error("Error loading model:", error);
+      (xhr) => {
+        console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}%`);
+      },
+      (error) => {
+        console.error('❌ Error loading model:', error);
       }
     );
   }
 
-  private animate = () => {
-    requestAnimationFrame(this.animate);
+  private animate = (): void => {
+    this.animationId = requestAnimationFrame(this.animate);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };
 
-  @HostListener("mousedown", ["$event"])
-  onMouseDown(event: MouseEvent): void {
-    this.dragStart = { x: event.clientX, y: event.clientY };
-    this.isDragging = false;
-  }
-
-  @HostListener("mousemove", ["$event"])
-  onMouseMove(event: MouseEvent): void {
-    const dx = Math.abs(event.clientX - this.dragStart.x);
-    const dy = Math.abs(event.clientY - this.dragStart.y);
-
-    if (dx > 5 || dy > 5) {
-      this.isDragging = true;
-    }
-  }
-
-  @HostListener("mouseup", ["$event"])
-  onMouseUp(event: MouseEvent): void {
-    if (!this.isDragging) {
-      this.handleClick(event); // run your raycaster here
-    }
-  }
-
-  private handleClick(event: MouseEvent): void {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-
-    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects(
-      this.scene.children,
-      true
-    );
-
-    if (intersects.length > 0) {
-      const clickedObjectName = intersects[0].object.name;
-      this.dialog
-        .open(InfoModalComponent, {
-          width: "400px",
-          data: { name: intersects[0].object.name },
-        })
-        .afterClosed()
-        .subscribe((result) => {
-          if (result === "articleRedirect") {
-            if (
-              (Object as any).values(ArticleEnum).includes(clickedObjectName)
-            ) {
-              this.router.navigate(["/article", clickedObjectName]);
-            } else {
-              console.warn("No article found for:", clickedObjectName);
-            }
-          }
-        });
-      // later: route navigation or popup trigger here
-    }
-  }
-
-  @HostListener("window:resize")
-  onResize(): void {
+  private onWindowResize = (): void => {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  };
+
+  ngOnDestroy(): void {
+    cancelAnimationFrame(this.animationId);
+    this.controls.dispose();
+    this.renderer.dispose();
+    window.removeEventListener('resize', this.onWindowResize, false);
   }
 }
