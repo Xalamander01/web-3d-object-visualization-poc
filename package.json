@@ -15,7 +15,7 @@
     "lint": "ng lint",
     "lint:fix": "npm run lint -- --fix",
     "github-build": "ng build --configuration production --base-href 'https://xalamander01.github.io/web-3d-object-visualization-poc/'",
-    "build:2": "ng build --output-path docs --base-href /web-3d-object-visualization-poc/,",
+    "build:2": "ng build --output-path docs",
     "github-deploy": "npx angular-cli-ghpages --dir=dist/web-3d-object-visualization-poc/browser --no-silent"
   },
   "private": true,
